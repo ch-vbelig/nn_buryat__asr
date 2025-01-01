@@ -1,0 +1,4 @@
+/00. data utils/
+.idea
+/c_phone_recognition/data/audio/
+*.json
