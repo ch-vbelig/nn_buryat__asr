@@ -45,11 +45,11 @@ def mix_down_if_necessary(signal):
 
 
 def pad_if_necessary(signal, label):
-    seq_length = config.MAX_LENGTH * config.SAMPLE_RATE
+    seq_length = config.MAX_DURATION * config.SAMPLE_RATE
     padded = torch.zeros((1, seq_length))
     end_idx = signal.size(1)
     if seq_length < end_idx:
-        raise Exception(f"File {label} is longer than {config.MAX_LENGTH} seconds.")
+        raise Exception(f"File {label} is longer than {config.MAX_DURATION} seconds.")
     padded[0][:end_idx] = signal[0]
     return padded
 
@@ -57,8 +57,8 @@ def convert_data(ids, converter):
     _tokens = []
 
     for i in ids:
-        if i in converter.index_to_el:
-            token = converter.index_to_el[i]
+        if i in converter.index_to_phone:
+            token = converter.index_to_phone[i]
         else:
             # token = '`'
             continue

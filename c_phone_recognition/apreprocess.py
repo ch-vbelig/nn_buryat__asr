@@ -1,67 +1,47 @@
 from utils.meltransform import MelTransform
 from utils.converter import PhoneConverter
 from utils import config
-from sklearn.utils import shuffle
 import numpy as np
 import json
 import torch
-from torch.nn.utils.rnn import pad_sequence
 
-def shuffle_data(data, phones):
-    a, b = shuffle(data, phones)
-    return a, b
 
-def join_data(arr1, arr2):
-    data = []
-    for seq1, seq2 in zip(arr1, arr2):
-        joined = seq1 + seq2
-        data.append(joined)
-    return data
+def convert_to_indexes(phones, converter, max_seq_length=config.MAX_TARGET_LENGTH):
+    """
+    :param: phones (list): list of phone representations for all audio files in audio directory
+    :param: converter (PhoneConverter): to/from phone converter
+    :param: max_seq_length (int): the length of padded sequence
+    :return: targets (list): list of converted phone representations for all files in audio directory
+    :return: target_lengths (list of int): length of target sequences before padding
+    """
 
-def generate_data(inputs, outputs, iter=2):
-    x = []
-    y = []
-    ins = inputs.copy()
-    outs = outputs.copy()
-    for i in range(iter):
-        data, targets = shuffle_data(ins, outs)
-        joined_data = join_data(inputs, data)
-        joined_targets = join_data(outputs, targets)
-        x.extend(joined_data)
-        y.extend(joined_targets)
-
-    return x, y
-
-def convert_to_indexes(phones, converter, MAX_SEQUENCE_LENGTH=50):
     targets = []
     target_lengths = []
+
     for phone_seq in phones:
-        ids = np.zeros(MAX_SEQUENCE_LENGTH, dtype=np.int32)
-        indexes = [converter.el_to_index[phone] for phone in phone_seq.split()]
-        # indexes.append(converter.sil_token)
+        # convert and pad with zeros
+        ids = np.zeros(max_seq_length, dtype=np.int32)
+        indexes = [converter.phone_to_index[phone] for phone in phone_seq.split()]
         ids[:len(indexes)] = indexes
 
         targets.append(ids.tolist())
         target_lengths.append(len(indexes))
     return targets, target_lengths
 
-def normalize_data(mels):
 
+def normalize_data(mels, verbose=False):
     data = np.array(mels)
 
-    """
-    Max value: 77.63
-    Min value: -30.66
-    Mean value: -9.52
-    Std value: 11.72
-    """
-    print(f'Max value: {data.max():.2f}')
-    print(f'Min value: {data.min():.2f}')
-    print(f'Mean value: {data.mean():.2f}')
-    print(f'Std value: {data.std():.2f}')
-
+    max_val = data.max()
+    min_val = data.min()
     mean = data.mean()
     std = data.std()
+
+    if verbose:
+        print(f"Max value: {max_val}.")
+        print(f"Min value: {min_val}.")
+        print(f"Mean value: {mean}.")
+        print(f"Std value: {std}.")
 
     data = (data - mean) / std
 
@@ -79,13 +59,11 @@ def save_data(fpath, data, targets, input_lengths, target_lengths):
         json.dump(obj, fp)
 
 
-
 if __name__ == '__main__':
     AUDIO_DIR = './data/audio'
     DATA_PATH = 'data/bur_phrase_to_phone.csv'
     PHONE_SET_PATH = './data/bur_phone_set.txt'
     DATA_SAVE_PATH = 'data/data.json'
-
 
     SAMPLE_RATE = 16000
     meltransform = MelTransform(
@@ -97,26 +75,25 @@ if __name__ == '__main__':
         n_mels=config.N_MELS
     )
 
-    # get mel spectrograms
+    # Calculate melspectrograms
+    # S_mels: a list of (ts, 1, n_mels) tensors
     S_mels, phones, input_lengths = meltransform.build_spectrograms(n_files=None)
 
     S_mels = torch.nn.utils.rnn.pad_sequence(S_mels)
-    S_mels = S_mels.permute(1, 2, 3, 0)
-    #
+    S_mels = S_mels.permute(1, 2, 3, 0) # S_mels: tensor with size (n, 1, n_mels, ts)
+
     phone_converter = PhoneConverter(PHONE_SET_PATH)
 
-    # convert to indexes
-    targets, target_lengths = convert_to_indexes(phones, phone_converter, MAX_SEQUENCE_LENGTH=60)
-
-    # shuffle
-    # data, targets = generate_data(S_mels, targets, 4)
+    # Convert phones into indexes
+    targets, target_lengths = convert_to_indexes(phones, phone_converter, max_seq_length=60)
 
     print(S_mels.size())
     print(torch.tensor(targets).size())
+    print('class num:', len(phone_converter.phone_to_index))
 
-    S_mels = normalize_data(S_mels)
+    # Perform normalization
+    S_mels = normalize_data(S_mels, verbose=False)
 
     # save data
     save_data(DATA_SAVE_PATH, S_mels, targets, input_lengths, target_lengths)
 
-    print('class num:', len(phone_converter.el_to_index))

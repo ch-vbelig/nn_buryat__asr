@@ -4,26 +4,38 @@ from pathlib import Path
 import librosa
 import matplotlib.pyplot as plt
 import pandas as pd
+import c_phone_recognition.utils.config as config
+import numpy as np
 
 class MelTransform:
     def __init__(self,
                  audio_dir,
                  data_csv,
-                 sample_rate,
-                 n_fft,
-                 hop_length,
-                 n_mels,
-                 max_s_length=10
+                 sample_rate=config.SAMPLE_RATE,
+                 n_fft=config.N_FFT,
+                 hop_length=config.HOP_LENGTH,
+                 n_mels=config.N_MELS,
+                 max_duration=config.MAX_DURATION,
                  ):
         """
-        :param: audio_dir: directory containing *.wav files
-        transformation params: sr = 16 kHz, n_fft = 1024 frames, hop_length = 512 frames, n_mels = 128 bins
+        :param: audio_dir (str): directory containing *.wav files
+        :param: data_csv (str): phrase-to-phones *.csv file -> Table with | phrase | phones | file_name |
+        :param: max_duration (str): phrase-to-phones *.csv file -> Table with | phrase | phones | file_name |
+        :param: sample_rate (int): the target sample rate -> default: 16 kHz
+        :param: n_fft (int): num of samples per frame -> default: 1024 samples
+        :param: hop_length (int): overlap between frames -> default: 512 samples
+        :param: n_mels (int): num of mel filterbanks -> default: 128 bins
+
+        :attr: self.df (pd.DataFrame): dataframe with columns | phrase | phones | file_name |
         """
 
         self.audio_dir = audio_dir
-        self.data_txt_path = data_csv
+        self.data_csv_path = data_csv
+
         self.target_sample_rate = sample_rate
-        self.transform = torchaudio.transforms.MelSpectrogram(
+        self.max_duration = max_duration
+
+        self.spec_transform = torchaudio.transforms.MelSpectrogram(
             sample_rate=sample_rate,
             n_fft=n_fft,
             hop_length=hop_length,
@@ -34,21 +46,19 @@ class MelTransform:
             stype='amplitude',
             top_db=80
         )
+
         self.df = pd.read_csv(data_csv, header=None, index_col=0).dropna(how='any')
         self.df.columns = ['phrase', 'phones', 'file_name']
+
+        # get all audio_dir/*.wav files
         self.audio_paths = self._search_files()
-        self.sample_rate = sample_rate
-        self.max_s_length = max_s_length
 
-    def _search_files(self):
-        paths = []
-
-        for fstem in self.df['file_name']:
-            path = Path(self.audio_dir) / f'{fstem}.wav'
-            paths.append(path)
-        return paths
-
-    def build_spectrograms(self, n_files=None, verbose=False):
+    def build_spectrograms(self, n_files=None):
+        """
+        :return: inputs (list of tensors): list of melspectrograms (tensors) -> (n, ts, 1, n_mels)
+        :return: phone_representations (list of str): list of phone representations (not padded) -> (n, )
+        :return: input_lengths (list of int): melspectrogram time steps before padding -> (n, )
+        """
         inputs = []
         phone_representations = []
         input_lengths = []
@@ -56,36 +66,50 @@ class MelTransform:
         if n_files is None:
             n_files = len(self.audio_paths)
 
-        for a_path in self.audio_paths[:n_files]:
-            # Spectrogram: (1, 128, ts)
-            fstem, spectrogram, input_length = self._build_spectrogram(a_path, verbose)
-            spectrogram = spectrogram.permute(2, 0, 1)
-            phone_repr = self.df[self.df['file_name'] == fstem]['phones'].values[0]
+        for audio_path in self.audio_paths[:n_files]:
+            # spectrogram: (1, 128, ts)
+            spectrogram, input_length, file_stem = self._build_spectrogram(audio_path)
+            # permute to bring ts to the first dim -> required for torch.nn.utils.rnn.pad_sequence
+            spectrogram = spectrogram.permute(2, 0, 1)  # (ts, 1, 128)
 
-            # inputs: (n, 1, nmels, ts)
-            # phone_representations: (n, ts)
+            phone_repr = self.df[self.df['file_name'] == file_stem]['phones'].values[0]
+
+            # inputs: (n, ts, 1, n_mels)
             inputs.append(spectrogram)
+
+            # phone_representations: (n, ts)
             phone_representations.append(phone_repr)
 
             input_lengths.append(input_length)
         return inputs, phone_representations, input_lengths
 
-    def _build_spectrogram(self, audio_path, verbose=False):
+    def _search_files(self):
+        paths = []
+        for stem in self.df['file_name']:
+            path = Path(self.audio_dir) / f'{stem}.wav'
+            paths.append(path)
+        return paths
+
+    def _build_spectrogram(self, audio_path):
         # signal: (n_channels, n_samples)
         signal, sr = torchaudio.load(audio_path)
         label = audio_path.stem
+
+        if signal.size(1) // sr > self.max_duration:
+            raise RuntimeError(f"File {audio_path.name} is longer than {self.max_duration} seconds.")
+
         signal = self._resample_if_necessary(signal, sr)
+
         # signal: (n_channels, n_samples) -> (1, n_samples)
         signal = self._mix_down_if_necessary(signal)
-        signal = self.transform(signal) # 1, nmels, ts
-        signal_length = signal.size(2)
-        # signal = self._pad_if_necessary(signal, label)
-        signal = self.amplitude_to_db_transform(signal)
-        if verbose:
-            print(f'signal: {audio_path}, max: {signal.max()}')
-        # signal = signal / torch.max(signal)
 
-        return label, signal, signal_length
+        # signal: (n_channels, n_mels, ts) : (1, 128, ts)
+        signal = self.spec_transform(signal)
+        signal = self.amplitude_to_db_transform(signal)
+
+        signal_length = signal.size(2)
+
+        return signal, signal_length, label
 
     def _resample_if_necessary(self, signal, sr):
         if sr != self.target_sample_rate:
@@ -98,24 +122,34 @@ class MelTransform:
             signal = torch.mean(signal, dim=0, keepdim=True)
         return signal
 
-    def _pad_if_necessary(self, signal, label):
-        seq_length = self.max_s_length * self.sample_rate
-        padded = torch.zeros((1, seq_length))
-        end_idx = signal.size(1)
-        if seq_length < end_idx:
-            raise Exception(f"File {label} is longer than {self.max_s_length} seconds.")
-        padded[0][:end_idx] = signal[0]
-        return padded
+    def plot_spectrogram(self, spectrogram, sr=config.SAMPLE_RATE, title=None, y_label="freq_bin", ts_first=False,):
+        """
+        :param spectrogram (tensor): melspectrogram -> (1, n_mels, ts)
+        :param ts_first (bool): if True, melspectrogram comes as (ts, 1, n_mels)
+        """
+        spec = spectrogram.squeeze()
 
-    def plot_spectrogram(self, spec, title=None, y_label="freq_bin", ax=None):
-        # specgram: (1, n_mels, ts)
-        spec = spec[0].numpy()
-        if ax is None:
-            _, ax = plt.subplots(1, 1)
-        if title is not None:
+        # convert into np.array
+        spec = np.array(spectrogram)
+
+        if ts_first:
+            spec = np.transpose(spec, (1, 0))
+
+        fig, ax = plt.subplots()
+
+        img = librosa.display.specshow(
+            spec,
+            x_axis="time",
+            y_axis="mel",
+            sr=sr,
+            fmax=8000,
+            ax=ax
+        )
+
+        if title:
             ax.set_title(title)
         ax.set_ylabel(y_label)
-        ax.imshow(librosa.power_to_db(spec), origin="lower", aspect="auto", interpolation="nearest")
+        fig.colorbar(img, ax=ax, format='%+2.0f dB')
         plt.show()
 
 

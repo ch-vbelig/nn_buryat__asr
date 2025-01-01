@@ -1,10 +1,20 @@
 class PhoneConverter:
-    def __init__(self, path):
-        self.fpath = path
-        self.el_to_index = {"<SPACE>": 0}
-        self.sil_token = 0
-        self.index_to_el = {0: "<SPACE>"}
-        self.n_elements = len(self.index_to_el)
+
+    def __init__(self, fpath):
+        """
+        :attr self.fpath (str): path to the phone_set.txt file, each line contains a single phone (space token excluded)
+        :attr self.space_token (str): <SPACE> token
+        :attr self.space_idx (int): index of <SPACE> token
+        :attr self.phone_to_index (dict): phone-to-index dictionary
+        :attr self.index_to_phone (dict): index-to-phone dictionary
+        :attr self.n_elements (int): number of elements in dictionary
+        """
+        self.fpath = fpath
+        self.space_idx = 0
+        self.phone_to_index = {"<SPACE>": 0}
+        self.index_to_phone = {0: "<SPACE>"}
+        self.n_elements = len(self.index_to_phone)
+
         self._add_elements()
 
     def _add_elements(self):
@@ -16,7 +26,7 @@ class PhoneConverter:
                 self._add_element(phone)
 
     def _add_element(self, element):
-        if element not in self.el_to_index:
-            self.el_to_index[element] = self.n_elements
-            self.index_to_el[self.n_elements] = element
+        if element not in self.phone_to_index:
+            self.phone_to_index[element] = self.n_elements
+            self.index_to_phone[self.n_elements] = element
             self.n_elements += 1
