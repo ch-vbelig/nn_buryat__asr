@@ -1,10 +1,16 @@
 import torch
 import json
-import torch.nn as nn
 
 
 class SpeechDataset:
     def __init__(self, data_path):
+        """
+        :param data_path: path to *.json file with preprocessed data
+        :key 'data': melspectrograms : (n, 1, n_mels, ts), where 1 is number of channels
+        :key 'targets': indexes of target phones (padded): (n, max_seq_length)
+        :key 'input_length': length of each input sequence (when non-padded)
+        :key 'target_length': length of each output sequence (when non-padded)
+        """
         self.data_path = data_path
         obj = self.load_data()
 

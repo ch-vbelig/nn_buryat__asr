@@ -10,53 +10,60 @@ import dengine as engine
 import torch.optim.lr_scheduler as lr_scheduler
 from pathlib import Path
 
-EPOCHS = config.EPOCHS
-LEARNING_RATE = config.LEARNING_RATE
 
-def load_data(fpath):
-    with open(fpath) as fp:
-        data = json.load(fp)
-        return data
-
-
-def prepare_dataloader(data_path):
+def prepare_dataloader(data_path, batch_size):
+    """
+    :param data_path (str): path to *.json file with 'data', 'targets', 'input_lengths', and 'target_lengths' keywords
+    :return: train_dataloader (torch.utils.data.DataLoader)
+    """
     dataset = SpeechDataset(data_path)
     train_dataloader = DataLoader(
         dataset,
-        batch_size=config.BATCH_SIZE,
+        batch_size=batch_size,
     )
     return train_dataloader
 
 
-def configure_model(model_path=None):
-    OUTPUT_SIZE = 60
+def configure_model(model_path=None, num_classes=config.N_CLASSES, learning_rate=1e-3):
+    """
+    :param model_path (str): path to an existing model
+    :return: model (torch.nn.Module): configured model
+    """
+    OUTPUT_SIZE = num_classes + 1  # 59 + 1 = 60
 
     model = PhoneRecognitionModel(
         output_size=OUTPUT_SIZE
     )
 
     if model_path and Path(model_path).exists():
-        model.load_state_dict(torch.load(model_path, weights_only=True))
-        model.eval()
-        optimizer = optim.SGD(model.parameters(), lr=1e-4)
-
+        print(f"Loading model from {model_path} ...")
+        # Load the weights and set to train mode
+        model = engine.load_model(model_path)
+        model.train()
     else:
-        optimizer = optim.Adam(model.parameters(), lr=1e-2)
+        print("Configuring a new model ...")
+
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     return model, optimizer
 
 
-def run_training(model, optimizer, save_path, data_path):
-
-    dataloader = prepare_dataloader(data_path)
+def run_training(model, optimizer, epochs, save_path, data_path):
+    """
+    :param model (torch.nn.Module): configured model
+    :param optimizer (torch.optim.Adam)
+    :param save_path (str): model save path
+    :param data_path: path to *.json file with 'data', 'targets', 'input_lengths', and 'target_lengths' keywords
+    """
+    dataloader = prepare_dataloader(data_path, config.BATCH_SIZE)
 
     model.to(config.DEVICE)
 
-    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.3, total_iters=config.EPOCHS)
+    scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.01, total_iters=epochs)
 
     criterion = nn.CTCLoss(blank=59)
 
-    for epoch in range(1, config.EPOCHS + 1):
+    for epoch in range(1, epochs + 1):
         loss = engine.train_fn(dataloader, model, optimizer, criterion)
 
         # if epoch % 5 == 0:
@@ -68,11 +75,14 @@ def run_training(model, optimizer, save_path, data_path):
 
     engine.save_model(model, save_path)
 
+
 if __name__ == '__main__':
     DATA_JSON_PATH = './data/data.json'
-    MODEL_PATH = './models/phone_model_normalized2.pth'
-    model, optimizer = configure_model(MODEL_PATH)
-    run_training(model, optimizer, MODEL_PATH, DATA_JSON_PATH)
+    MODEL_PATH = 'models/phone_model_normalized_2d_conv_batchnorm.pth'
+    N_CLASSES = config.N_CLASSES
+    LR = 1e-3
+    EPOCHS = config.EPOCHS
 
-
-
+    # Configure and train
+    model, optimizer = configure_model(MODEL_PATH, N_CLASSES, LR)
+    run_training(model, optimizer, EPOCHS, MODEL_PATH, DATA_JSON_PATH)

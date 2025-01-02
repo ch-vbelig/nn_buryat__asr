@@ -4,12 +4,14 @@ from pathlib import Path
 import dengine as engine
 import utils.config as config
 from cmodel import PhoneRecognitionModel
+from c_phone_recognition.utils.old import PhoneRecognitionModelBasic
 from utils.meltransform import MelTransform
 from utils.converter import PhoneConverter
 
 PHONE_SET_PATH = './data/bur_phone_set.txt'
-MODEL_PATH = './models/phone_model_normalized2.pth'
-AUDIO_PATH = Path('./data/audio/id_0_1022.wav')
+MODEL_PATH = 'models/phone_model_normalized_2d_conv.pth'
+AUDIO_PATH = Path('./data/test_audio/test.wav')
+
 
 
 def build_spectrogram(audio_path, transform, amplitude_to_db_transform):
@@ -17,10 +19,14 @@ def build_spectrogram(audio_path, transform, amplitude_to_db_transform):
     # signal: (n_channels, n_samples)
     signal, sr = torchaudio.load(audio_path)
     label = audio_path.stem
+
     signal = resample_if_necessary(signal, sr)
+
     # signal: (n_channels, n_samples) -> (1, n_samples)
     signal = mix_down_if_necessary(signal)
     signal = pad_if_necessary(signal, label)
+
+    # signal: (n_channels, n_mels, ts) : (1, 128, ts)
     signal = transform(signal)
     signal = amplitude_to_db_transform(signal)
 
@@ -49,33 +55,25 @@ def pad_if_necessary(signal, label):
     padded = torch.zeros((1, seq_length))
     end_idx = signal.size(1)
     if seq_length < end_idx:
-        raise Exception(f"File {label} is longer than {config.MAX_DURATION} seconds.")
+        raise RuntimeError(f"File {label} is longer than {config.MAX_DURATION} seconds.")
     padded[0][:end_idx] = signal[0]
     return padded
 
 def convert_data(ids, converter):
-    _tokens = []
+    _tokens = [converter.index_to_phone[i] for i in ids if i in converter.index_to_phone]
 
-    for i in ids:
-        if i in converter.index_to_phone:
-            token = converter.index_to_phone[i]
-        else:
-            # token = '`'
-            continue
-        _tokens.append(token)
     tokens = []
-
     for t in _tokens:
-        if t in ['`']:
-            continue
         if len(tokens) > 0 and tokens[-1] == t:
             continue
         tokens.append(t)
     return tokens
 
 if __name__ == '__main__':
+    # load and set to eval model
     model = PhoneRecognitionModel(60)
     model = engine.load_model(model, MODEL_PATH)
+    model.eval()
 
     transform = torchaudio.transforms.MelSpectrogram(
             sample_rate=config.SAMPLE_RATE,
@@ -100,11 +98,7 @@ if __name__ == '__main__':
     _, ids = torch.max(log_probs, dim=-1)
     ids = ids.squeeze(1).numpy().tolist()
 
-
     phone_converter = PhoneConverter(PHONE_SET_PATH)
 
     res = convert_data(ids, phone_converter)
     print(res)
-
-
-
