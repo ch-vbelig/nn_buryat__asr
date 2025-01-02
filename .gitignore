@@ -1,4 +1,6 @@
 /00. data utils/
 .idea
 /c_phone_recognition/data/audio/
+/c_phone_recognition/data/test_audio/
 *.json
+/c_phone_recognition/utils/old.py
