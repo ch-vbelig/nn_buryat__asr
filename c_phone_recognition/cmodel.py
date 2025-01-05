@@ -7,7 +7,7 @@ N_CHANNELS = 8
 CONV_KERNEL_SIZE = (3, 3)
 CONV_STRIDE = (1, 1)
 POOL_KERNEL_SIZE = (1, 1)
-POOL_STRIDE = (2, 2)
+POOL_STRIDE = (2, 1)
 HIDDEN_SIZE = 128
 
 class PhoneRecognitionModel(nn.Module):
@@ -20,7 +20,7 @@ class PhoneRecognitionModel(nn.Module):
                       stride=CONV_STRIDE),
             nn.Conv2d(in_channels=N_CHANNELS, out_channels=N_CHANNELS, kernel_size=CONV_KERNEL_SIZE,
                       stride=CONV_STRIDE),
-            # nn.BatchNorm2d(N_CHANNELS),
+            nn.BatchNorm2d(N_CHANNELS),
             nn.ReLU(),
             nn.MaxPool2d(POOL_KERNEL_SIZE, POOL_STRIDE),
             nn.Conv2d(in_channels=N_CHANNELS, out_channels=N_CHANNELS, kernel_size=CONV_KERNEL_SIZE,
@@ -29,7 +29,7 @@ class PhoneRecognitionModel(nn.Module):
                       stride=CONV_STRIDE),
             nn.Conv2d(in_channels=N_CHANNELS, out_channels=N_CHANNELS, kernel_size=CONV_KERNEL_SIZE,
                       stride=CONV_STRIDE),
-            # nn.BatchNorm2d(N_CHANNELS),
+            nn.BatchNorm2d(N_CHANNELS),
             nn.ReLU(),
             nn.MaxPool2d(POOL_KERNEL_SIZE, POOL_STRIDE),
         )

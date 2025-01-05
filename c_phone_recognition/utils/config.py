@@ -1,6 +1,6 @@
 # Params for audio preprocessing
 MAX_DURATION = 10  # in seconds
-MAX_TARGET_LENGTH = 60  # in seconds
+MAX_TARGET_LENGTH = 62  # in seconds
 SAMPLE_RATE = 16000
 N_FFT = 1024
 HOP_LENGTH = 512
@@ -17,4 +17,4 @@ BATCH_SIZE = 16
 EPOCHS = 1000
 LEARNING_RATE = 1e-2
 DEVICE = 'cuda'
-N_CLASSES = 59
+N_CLASSES = 60

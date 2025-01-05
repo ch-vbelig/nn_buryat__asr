@@ -42,7 +42,7 @@ def configure_model(model_path=None, num_classes=config.N_CLASSES, learning_rate
         model.train()
     else:
         print("Configuring a new model ...")
-
+    print(model)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     return model, optimizer
@@ -61,7 +61,8 @@ def run_training(model, optimizer, epochs, save_path, data_path):
 
     scheduler = lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.01, total_iters=epochs)
 
-    criterion = nn.CTCLoss(blank=59)
+    blank_id = config.N_CLASSES 
+    criterion = nn.CTCLoss(blank=blank_id)
 
     for epoch in range(1, epochs + 1):
         loss = engine.train_fn(dataloader, model, optimizer, criterion)
@@ -77,7 +78,7 @@ def run_training(model, optimizer, epochs, save_path, data_path):
 
 
 if __name__ == '__main__':
-    DATA_JSON_PATH = './data/data.json'
+    DATA_JSON_PATH = './data/data_2.json'
     MODEL_PATH = 'models/phone_model_normalized_2d_conv_batchnorm.pth'
     N_CLASSES = config.N_CLASSES
     LR = 1e-3
