@@ -22,6 +22,7 @@ def convert_to_indexes(phones, converter, max_seq_length=config.MAX_TARGET_LENGT
         # convert and pad with zeros
         ids = np.zeros(max_seq_length, dtype=np.int32)
         indexes = [converter.phone_to_index[phone] for phone in phone_seq.split()]
+        indexes.append(converter.sil_idx)
         ids[:len(indexes)] = indexes
 
         targets.append(ids.tolist())
@@ -59,11 +60,11 @@ def save_data(fpath, data, targets, input_lengths, target_lengths):
         json.dump(obj, fp)
 
 
-if __name__ == '__main__':
+def run_preprocess():
     AUDIO_DIR = './data/audio'
     DATA_PATH = 'data/bur_phrase_to_phone.csv'
     PHONE_SET_PATH = './data/bur_phone_set.txt'
-    DATA_SAVE_PATH = 'data/data.json'
+    DATA_SAVE_PATH = 'data/data_2.json'
 
     SAMPLE_RATE = 16000
     meltransform = MelTransform(
@@ -76,16 +77,16 @@ if __name__ == '__main__':
     )
 
     # Calculate melspectrograms
-    # S_mels: a list of (ts, 1, n_mels) tensors
+    # S_mels (list of tensors): (n, ) (ts, 1, n_mels)
     S_mels, phones, input_lengths = meltransform.build_spectrograms(n_files=None)
 
     S_mels = torch.nn.utils.rnn.pad_sequence(S_mels)
-    S_mels = S_mels.permute(1, 2, 3, 0) # S_mels: tensor with size (n, 1, n_mels, ts)
+    S_mels = S_mels.permute(1, 2, 3, 0)  # S_mels (tensor): (n, 1, n_mels, ts)
 
     phone_converter = PhoneConverter(PHONE_SET_PATH)
 
     # Convert phones into indexes
-    targets, target_lengths = convert_to_indexes(phones, phone_converter, max_seq_length=60)
+    targets, target_lengths = convert_to_indexes(phones, phone_converter, max_seq_length=config.MAX_TARGET_LENGTH)
 
     print(S_mels.size())
     print(torch.tensor(targets).size())
@@ -96,4 +97,8 @@ if __name__ == '__main__':
 
     # save data
     save_data(DATA_SAVE_PATH, S_mels, targets, input_lengths, target_lengths)
+
+
+if __name__ == '__main__':
+    run_preprocess()
 
