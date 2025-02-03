@@ -54,12 +54,12 @@
 адляар	A D LJ I R EH R
 адууһа	A D UUh HH EH
 ажа	A ZH EH
-ажабайдал	A ZH EH V EE D EH L EH L
-ажабайдалаар	A ZH EH V EE D EH L AA R
-ажабайдалаймни	A ZH EH V EE D EH L N EE M NJ I
-ажабайдалда	A ZH EH V EE D EH L D EH
-ажабайдалдаа	A ZH EH V EE D EH L D EH
-ажабайдалдань	A ZH EH V EE D EH L D EH NJ
+ажабайдал	A ZH EH B EE D EH L EH L
+ажабайдалаар	A ZH EH B EE D EH L AA R
+ажабайдалаймни	A ZH EH B EE D EH L N EE M NJ I
+ажабайдалда	A ZH EH B EE D EH L D EH
+ажабайдалдаа	A ZH EH B EE D EH L D EH
+ажабайдалдань	A ZH EH B EE D EH L D EH NJ
 ажал	A ZH EH L
 ажалаа	A ZH EH L AA
 ажалаар	A ZH EH L AA R
@@ -238,8 +238,10 @@
 асуудал	A S UUh D EH L
 асуудалнууд	A S UUh D EH L N UUh T
 асуудалнуудни	A S UUh D EH L N UUh D NJ I
+асуудалнуудшье  A S UUh D EH L N UUh T SH J EH
 асуудалые	A S UUh D EH L Y J EH
 асууһааб	A S UUh HH AA P
+асфальтаар  A S F A LJ T AA R
 ася	A S J AA
 атаархадаг	A T AA R H EH D EH K
 афганай	A F G A N EE
@@ -1377,6 +1379,7 @@
 илагшадай	I L EH K SH EH D EE
 илажа	I L EH ZH EH
 илангаяа	I L EH NG G A J AA
+илгарнабди  I L Gr EH R N EH B DJ I
 импери	I M PJ E RJ I
 империин	I M PJ E RJ II NG
 инаг	I N EH K
@@ -1754,6 +1757,7 @@
 нэгэл	N E Gr EH L
 нэгэмнай	N E Gr EH M N EE
 нэгэн	N E Gr EH NG
+нэгэнби N E Gr EH NG BJ I
 нэгэндэ	N E Gr EH N D EH
 нэгэниинь	N E Gr EH NJ II NJ
 нэгэтэ	N E Gr EH T EH
@@ -1853,6 +1857,7 @@
 олимпиадада	O LJ I M PJ I A D EH D EH
 олимпиаданууд	O LJ I M PJ I A D A D EH N UUh T
 оло	O L EH
+олодоггүйб  O L EH D EH G G UIs P
 олой	O L EE
 ололсожо	O L EH L S EH ZH EH
 олон	O L EH NG
@@ -1872,6 +1877,7 @@
 ольтирогуудаар	O LJ TJ I R O Gr UUh D AA R
 омар	O M EH R
 омогорхол	O M EH Gr EH R H EH L
+омогорхохоор    O M EH Gr EH R H EH H OOh R
 он	O NG
 ондо	O N D EH
 ондоо	O N D OOh
@@ -2437,6 +2443,7 @@
 тэниидэг	T E NJ II D EH K
 тэнюун	T E NJ UUh NG
 тэригүүн	T E RJ I Gr UUs NG
+тэрлигээ    T E R LJ I Gr EE
 тэрьедээд	T E RJ J E D EE T
 тэрэ	T E R EH
 тэрэмни	T E R EH M NJ I
@@ -2542,6 +2549,7 @@
 уйгуурнууд	UIh Gr UUh R N UUh T
 уйлана	UIh L EH N EH
 улаан	Uh L AA NG
+улаанбаатарай   Uh L AA NG B AA T EH R EE
 улаанүдын	Uh L AA N Us D Y NG
 улаанүдэ	Uh L AA N Us D EH
 улаанүдэдэ	Uh L AA N Us D EH D EH
@@ -3420,6 +3428,7 @@
 экшн	E K SH NG
 элбэг	E L V EH K
 элдэб	E L D EH P
+элдэбын	E L D EH V Y NG
 элдэдэг	E L D EH D EH K
 электронно	E LJ E K T R O N EH
 элидхэлнүүд	E LJ I T H EH L N UUs T
@@ -3464,6 +3473,7 @@
 энээхэндэ	E N EE H EH N D EH
 энээхэниие	E N EE H EH NJ II J EH
 энэһээ	E N EH HH EE
+экономико   E K O N O MJ I K EH
 эрдэм	E R D EH M
 эрдэмтэд	E R D EH M T EH T
 эрдэмтэдэй	E R D EH M T EH D EE

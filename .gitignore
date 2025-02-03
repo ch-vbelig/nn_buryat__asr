@@ -3,3 +3,5 @@
 /c_phone_recognition/data/audio/
 /c_phone_recognition/data/test_audio/
 *.json
+*.wav
+*.m4a

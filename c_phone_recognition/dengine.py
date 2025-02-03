@@ -34,6 +34,7 @@ def train_fn(
 
         # log_probs: ts, bs, output_size
         log_probs = model(input_tensor)
+        # log_probs = log_probs.permute(1, 0, 2)
 
         ts = log_probs.size(0)
 

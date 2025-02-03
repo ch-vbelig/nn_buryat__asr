@@ -3,15 +3,15 @@ import torchaudio
 from pathlib import Path
 import dengine as engine
 import utils.config as config
-from cmodel import PhoneRecognitionModel
+from cmodel import PhoneRecognitionModel, PhoneRecognitionModelResidual
 from c_phone_recognition.utils.old import PhoneRecognitionModelBasic
 from utils.meltransform import MelTransform
 from utils.converter import PhoneConverter
 from torchaudio.models.decoder import ctc_decoder
 
 PHONE_SET_PATH = './data/bur_phone_set.txt'
-MODEL_PATH = 'models/phone_model_normalized_2d_conv_batchnorm.pth'
-AUDIO_PATH = Path('./data/test_audio/test.wav')
+MODEL_PATH = 'models/phone_model_conv_residual.pth'
+AUDIO_PATH = Path('./data/test_audio/test6.wav')
 
 
 
@@ -31,8 +31,16 @@ def build_spectrogram(audio_path, transform, amplitude_to_db_transform):
     signal = transform(signal)
     signal = amplitude_to_db_transform(signal)
 
-    mean = -9.52
-    std = 11.72
+    # Max value: 88.47.
+    # Min value: -51.68.
+    # Mean value: -7.77.
+    # Std value: 12.10.
+    # Max value: 68.41.
+    # Min value: -69.58.
+    # Mean value: -15.93.
+    # Std value: 19.77.
+    mean = -15.93
+    std = 19.77
 
     signal = (signal - mean) / std
     return signal
@@ -72,7 +80,7 @@ def convert_data(ids, converter):
 
 
 def beam_search_ctc_decoder(emission):
-    LEXICON_FILE = "decoder/bur_word_to_phones_dict.txt"
+    LEXICON_FILE = "decoder/bur_lexicon_2.txt"
     TOKENS_FILE = "decoder/bur_phone_set.txt"
 
     beam_search_decoder = ctc_decoder(
@@ -81,7 +89,7 @@ def beam_search_ctc_decoder(emission):
         lm=None,
         nbest=3,
         beam_size=1500,
-        word_score=-0.2,
+        word_score=-0.8,
         blank_token='<BLANK>',
         sil_token='<SIL>',
 
@@ -95,14 +103,15 @@ def beam_search_ctc_decoder(emission):
 
 if __name__ == '__main__':
     # load and set to eval model
-    model = PhoneRecognitionModel(61)
+    model = PhoneRecognitionModelResidual(61)
     model = engine.load_model(model, MODEL_PATH)
     model.eval()
 
     transform = torchaudio.transforms.MelSpectrogram(
             sample_rate=config.SAMPLE_RATE,
             n_fft=config.N_FFT,
-            hop_length=config.HOP_LENGTH,
+            win_length=256,
+            hop_length=128,
             n_mels=config.N_MELS
         )
 

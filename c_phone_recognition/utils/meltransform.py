@@ -13,6 +13,7 @@ class MelTransform:
                  data_csv,
                  sample_rate=config.SAMPLE_RATE,
                  n_fft=config.N_FFT,
+                 win_length=config.WIN_LENGTH,
                  hop_length=config.HOP_LENGTH,
                  n_mels=config.N_MELS,
                  max_duration=config.MAX_DURATION,
@@ -39,16 +40,25 @@ class MelTransform:
             sample_rate=sample_rate,
             n_fft=n_fft,
             hop_length=hop_length,
+            win_length=win_length,
             n_mels=n_mels,
             # normalized=True
         )
+
+        self.freq_masking = torchaudio.transforms.FrequencyMasking(
+            freq_mask_param=7
+        )
+        self.time_masking = torchaudio.transforms.TimeMasking(
+            time_mask_param=15
+        )
+
         self.amplitude_to_db_transform = torchaudio.transforms.AmplitudeToDB(
-            stype='amplitude',
+            stype='power',
             top_db=80
         )
 
         self.df = pd.read_csv(data_csv, header=None, index_col=0).dropna(how='any')
-        self.df.columns = ['phrase', 'phones', 'file_name']
+        self.df.columns = ['speaker_id', 'phrase', 'phones', 'file_name']
 
         # get all audio_dir/*.wav files
         self.audio_paths = self._search_files()
@@ -105,6 +115,14 @@ class MelTransform:
 
         # signal: (n_channels, n_mels, ts) : (1, 128, ts)
         signal = self.spec_transform(signal)
+
+
+        # for i in range(7):
+        #     signal = self.freq_masking(signal)
+        #
+        # for i in range(20):
+        #     signal = self.time_masking(signal)
+
         signal = self.amplitude_to_db_transform(signal)
 
         signal_length = signal.size(2)
@@ -127,7 +145,7 @@ class MelTransform:
         :param spectrogram (tensor): melspectrogram -> (1, n_mels, ts)
         :param ts_first (bool): if True, melspectrogram comes as (ts, 1, n_mels)
         """
-        spec = spectrogram.squeeze()
+        spectrogram = spectrogram.squeeze()
 
         # convert into np.array
         spec = np.array(spectrogram)

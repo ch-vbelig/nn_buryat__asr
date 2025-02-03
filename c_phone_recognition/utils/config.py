@@ -1,9 +1,10 @@
 # Params for audio preprocessing
 MAX_DURATION = 10  # in seconds
-MAX_TARGET_LENGTH = 62  # in seconds
+MAX_TARGET_LENGTH = 70  # in seconds
 SAMPLE_RATE = 16000
 N_FFT = 1024
-HOP_LENGTH = 512
+WIN_LENGTH = 256
+HOP_LENGTH = 128
 N_MELS = 128
 
 MAX_VALUE = 77.63
@@ -14,7 +15,7 @@ STD_VALUE = 11.72
 # Params for ctc model
 HIDDEN_SIZE = 128
 BATCH_SIZE = 16
-EPOCHS = 1000
+EPOCHS = 500
 LEARNING_RATE = 1e-2
 DEVICE = 'cuda'
 N_CLASSES = 60

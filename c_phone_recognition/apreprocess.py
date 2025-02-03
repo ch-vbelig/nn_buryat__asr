@@ -30,7 +30,7 @@ def convert_to_indexes(phones, converter, max_seq_length=config.MAX_TARGET_LENGT
     return targets, target_lengths
 
 
-def normalize_data(mels, verbose=False):
+def normalize_data(mels, verbose=True):
     data = np.array(mels)
 
     max_val = data.max()
@@ -39,10 +39,10 @@ def normalize_data(mels, verbose=False):
     std = data.std()
 
     if verbose:
-        print(f"Max value: {max_val}.")
-        print(f"Min value: {min_val}.")
-        print(f"Mean value: {mean}.")
-        print(f"Std value: {std}.")
+        print(f"Max value: {max_val:.2f}.")
+        print(f"Min value: {min_val:.2f}.")
+        print(f"Mean value: {mean:.2f}.")
+        print(f"Std value: {std:.2f}.")
 
     data = (data - mean) / std
 
@@ -64,7 +64,7 @@ def run_preprocess():
     AUDIO_DIR = './data/audio'
     DATA_PATH = 'data/bur_phrase_to_phone.csv'
     PHONE_SET_PATH = './data/bur_phone_set.txt'
-    DATA_SAVE_PATH = 'data/data_2.json'
+    DATA_SAVE_PATH = 'data/data.json'
 
     SAMPLE_RATE = 16000
     meltransform = MelTransform(
@@ -72,6 +72,7 @@ def run_preprocess():
         data_csv=DATA_PATH,
         sample_rate=config.SAMPLE_RATE,
         n_fft=config.N_FFT,
+        win_length=config.WIN_LENGTH,
         hop_length=config.HOP_LENGTH,
         n_mels=config.N_MELS
     )
@@ -88,12 +89,16 @@ def run_preprocess():
     # Convert phones into indexes
     targets, target_lengths = convert_to_indexes(phones, phone_converter, max_seq_length=config.MAX_TARGET_LENGTH)
 
+    # plot
+    meltransform.plot_spectrogram(S_mels[1])
+
     print(S_mels.size())
     print(torch.tensor(targets).size())
     print('class num:', len(phone_converter.phone_to_index))
 
     # Perform normalization
-    S_mels = normalize_data(S_mels, verbose=False)
+    S_mels = normalize_data(S_mels, verbose=True)
+
 
     # save data
     save_data(DATA_SAVE_PATH, S_mels, targets, input_lengths, target_lengths)
