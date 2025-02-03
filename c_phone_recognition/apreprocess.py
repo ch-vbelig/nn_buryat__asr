@@ -1,107 +1,42 @@
-from utils.meltransform import MelTransform
-from utils.converter import PhoneConverter
-from utils import config
 import numpy as np
-import json
-import torch
+from bdataset import SpeechDataset
 
+def calculate_norm_values(data):
+    x = []
+    for d in data:
+        x.extend(d)
+    data = np.array(x)
 
-def convert_to_indexes(phones, converter, max_seq_length=config.MAX_TARGET_LENGTH):
-    """
-    :param: phones (list): list of phone representations for all audio files in audio directory
-    :param: converter (PhoneConverter): to/from phone converter
-    :param: max_seq_length (int): the length of padded sequence
-    :return: targets (list): list of converted phone representations for all files in audio directory
-    :return: target_lengths (list of int): length of target sequences before padding
-    """
-
-    targets = []
-    target_lengths = []
-
-    for phone_seq in phones:
-        # convert and pad with zeros
-        ids = np.zeros(max_seq_length, dtype=np.int32)
-        indexes = [converter.phone_to_index[phone] for phone in phone_seq.split()]
-        indexes.append(converter.sil_idx)
-        ids[:len(indexes)] = indexes
-
-        targets.append(ids.tolist())
-        target_lengths.append(len(indexes))
-    return targets, target_lengths
-
-
-def normalize_data(mels, verbose=True):
-    data = np.array(mels)
-
-    max_val = data.max()
-    min_val = data.min()
+    # Calculate the mean and std values
     mean = data.mean()
     std = data.std()
 
-    if verbose:
-        print(f"Max value: {max_val:.2f}.")
-        print(f"Min value: {min_val:.2f}.")
-        print(f"Mean value: {mean:.2f}.")
-        print(f"Std value: {std:.2f}.")
-
-    data = (data - mean) / std
-
-    return data.tolist()
-
-
-def save_data(fpath, data, targets, input_lengths, target_lengths):
-    obj = {
-        "data": data,
-        "targets": targets,
-        "input_lengths": input_lengths,
-        "target_lengths": target_lengths
-    }
-    with open(fpath, 'w') as fp:
-        json.dump(obj, fp)
+    return mean, std
 
 
 def run_preprocess():
-    AUDIO_DIR = './data/audio'
-    DATA_PATH = 'data/bur_phrase_to_phone.csv'
-    PHONE_SET_PATH = './data/bur_phone_set.txt'
-    DATA_SAVE_PATH = 'data/data.json'
+    AUDIO_DIR = 'data/audio'
+    PHONES_DIR = 'data/phones'
+    MAP_SAVE_PATH = 'data/saved_maps.json'
 
-    SAMPLE_RATE = 16000
-    meltransform = MelTransform(
+    dataset = SpeechDataset(
         audio_dir=AUDIO_DIR,
-        data_csv=DATA_PATH,
-        sample_rate=config.SAMPLE_RATE,
-        n_fft=config.N_FFT,
-        win_length=config.WIN_LENGTH,
-        hop_length=config.HOP_LENGTH,
-        n_mels=config.N_MELS
+        phone_dir=PHONES_DIR,
+        phone_map_path=MAP_SAVE_PATH
     )
+    spectrograms = []
 
-    # Calculate melspectrograms
-    # S_mels (list of tensors): (n, ) (ts, 1, n_mels)
-    S_mels, phones, input_lengths = meltransform.build_spectrograms(n_files=None)
+    for i in range(len(dataset)):
+        spec, _, _, _= dataset[i]
+        spectrograms.append(spec)
 
-    S_mels = torch.nn.utils.rnn.pad_sequence(S_mels)
-    S_mels = S_mels.permute(1, 2, 3, 0)  # S_mels (tensor): (n, 1, n_mels, ts)
+    n_classes = dataset.n_classes
+    print('N_classes:', n_classes)
+    # dataset.save_maps()
 
-    phone_converter = PhoneConverter(PHONE_SET_PATH)
-
-    # Convert phones into indexes
-    targets, target_lengths = convert_to_indexes(phones, phone_converter, max_seq_length=config.MAX_TARGET_LENGTH)
-
-    # plot
-    meltransform.plot_spectrogram(S_mels[1])
-
-    print(S_mels.size())
-    print(torch.tensor(targets).size())
-    print('class num:', len(phone_converter.phone_to_index))
-
-    # Perform normalization
-    S_mels = normalize_data(S_mels, verbose=True)
-
-
-    # save data
-    save_data(DATA_SAVE_PATH, S_mels, targets, input_lengths, target_lengths)
+    mean, std = calculate_norm_values(spectrograms)
+    print('Mean:', mean)
+    print('Std:', std)
 
 
 if __name__ == '__main__':

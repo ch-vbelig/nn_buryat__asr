@@ -3,80 +3,10 @@ import torchaudio
 from pathlib import Path
 import dengine as engine
 import utils.config as config
-from cmodel import PhoneRecognitionModel, PhoneRecognitionModelResidual
-from c_phone_recognition.utils.old import PhoneRecognitionModelBasic
+from cmodel import PhoneRecognitionModelResidual
 from utils.meltransform import MelTransform
-from utils.converter import PhoneConverter
 from torchaudio.models.decoder import ctc_decoder
-
-PHONE_SET_PATH = './data/bur_phone_set.txt'
-MODEL_PATH = 'models/phone_model_conv_residual.pth'
-AUDIO_PATH = Path('./data/test_audio/test6.wav')
-
-
-
-def build_spectrogram(audio_path, transform, amplitude_to_db_transform):
-
-    # signal: (n_channels, n_samples)
-    signal, sr = torchaudio.load(audio_path)
-    label = audio_path.stem
-
-    signal = resample_if_necessary(signal, sr)
-
-    # signal: (n_channels, n_samples) -> (1, n_samples)
-    signal = mix_down_if_necessary(signal)
-    signal = pad_if_necessary(signal, label)
-
-    # signal: (n_channels, n_mels, ts) : (1, 128, ts)
-    signal = transform(signal)
-    signal = amplitude_to_db_transform(signal)
-
-    # Max value: 88.47.
-    # Min value: -51.68.
-    # Mean value: -7.77.
-    # Std value: 12.10.
-    # Max value: 68.41.
-    # Min value: -69.58.
-    # Mean value: -15.93.
-    # Std value: 19.77.
-    mean = -15.93
-    std = 19.77
-
-    signal = (signal - mean) / std
-    return signal
-
-
-def resample_if_necessary(signal, sr):
-    if sr != config.SAMPLE_RATE:
-        resampler = torchaudio.transforms.Resample(sr, config.SAMPLE_RATE)
-        signal = resampler(signal)
-    return signal
-
-
-def mix_down_if_necessary(signal):
-    if signal.shape[0] > 1:
-        signal = torch.mean(signal, dim=0, keepdim=True)
-    return signal
-
-
-def pad_if_necessary(signal, label):
-    seq_length = config.MAX_DURATION * config.SAMPLE_RATE
-    padded = torch.zeros((1, seq_length))
-    end_idx = signal.size(1)
-    if seq_length < end_idx:
-        raise RuntimeError(f"File {label} is longer than {config.MAX_DURATION} seconds.")
-    padded[0][:end_idx] = signal[0]
-    return padded
-
-def convert_data(ids, converter):
-    _tokens = [converter.index_to_phone[i] for i in ids if i in converter.index_to_phone]
-
-    tokens = []
-    for t in _tokens:
-        if len(tokens) > 0 and tokens[-1] == t:
-            continue
-        tokens.append(t)
-    return tokens
+from utils.phonetransform import PhoneTransform
 
 
 def beam_search_ctc_decoder(emission):
@@ -102,38 +32,33 @@ def beam_search_ctc_decoder(emission):
     print(beam_search_transcript)
 
 if __name__ == '__main__':
+    PHONE_MAP_PATH = './data/saved_maps.json'
+    MODEL_PATH = 'models/phone_model_conv_residual.pth'
+    AUDIO_PATH = 'old/old/test_audio/test6.wav'
+
+    meltransform = MelTransform()
+    phonetransform = PhoneTransform(PHONE_MAP_PATH)
+
     # load and set to eval model
-    model = PhoneRecognitionModelResidual(61)
+    N_CLASSES = config.NUM_OF_PHONE_UNITS + 1
+    model = PhoneRecognitionModelResidual(N_CLASSES)
     model = engine.load_model(model, MODEL_PATH)
     model.eval()
 
-    transform = torchaudio.transforms.MelSpectrogram(
-            sample_rate=config.SAMPLE_RATE,
-            n_fft=config.N_FFT,
-            win_length=256,
-            hop_length=128,
-            n_mels=config.N_MELS
-        )
-
-    amplitude_to_db_transform = torchaudio.transforms.AmplitudeToDB(
-        stype='amplitude',
-        top_db=80
-    )
-
-    spectrogram = build_spectrogram(AUDIO_PATH, transform, amplitude_to_db_transform)
-
+    spectrogram = meltransform.build_spectrogram(audio_path=AUDIO_PATH)
+    # specs: (ts, n_channels, n_mels) -> (1, 128, ts)
+    spectrogram = spectrogram.permute(1, 2, 0)
+    spectrogram = (spectrogram - config.MEAN_VALUE) / config.STD_VALUE
     print(spectrogram.size())
 
     data = spectrogram.unsqueeze(0)
 
     log_probs = model(data)
-
-    beam_search_ctc_decoder(log_probs)
+    print(log_probs.size())
+    # beam_search_ctc_decoder(log_probs)
 
     _, ids = torch.max(log_probs, dim=-1)
     ids = ids.squeeze(1).numpy().tolist()
 
-    phone_converter = PhoneConverter(PHONE_SET_PATH)
-
-    res = convert_data(ids, phone_converter)
+    res = phonetransform.decode(ids)
     print(res)
