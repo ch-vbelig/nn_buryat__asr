@@ -9,13 +9,16 @@ BUR_PHONE_SET_PATH = '../data_raw/bur_phone_set.txt'
 DATA_PATH = '../data_raw/predict_phones.txt'
 DATA_SAVE_PATH = '../data_raw/predicted_phones.txt'
 
+ENCODER_PATH = '../model/encoder.pth'
+ATTN_DECODER_PATH = '../model/attn_decoder.pth'
+
 
 def open_file(fpath):
-    with open(fpath) as fp:
+    with open(fpath, encoding='utf-8') as fp:
         return fp.read()
 
 def save_to_file(fpath, words, predictions):
-    with open(fpath, 'w') as fp:
+    with open(fpath, 'w', encoding='utf-8') as fp:
         for word, phone in zip(words, predictions):
             phone_line = ' '.join(phone[:-1])
             line = f'{word}\t{phone_line}\n'
@@ -36,16 +39,16 @@ def load_models():
         hidden_size=config.HIDDEN_SIZE
     )
 
-    encoder = engine.load_model(encoder, config.ECODER_SAVE_PATH)
-    decoder = engine.load_model(decoder, config.ATTN_DECODER_SAVE_PATH)
+    encoder = engine.load_model(encoder, ENCODER_PATH)
+    decoder = engine.load_model(decoder, ATTN_DECODER_PATH)
 
     return encoder, decoder, letter_converter, phone_converter
 
 def get_words(text):
     words = [w.strip() for w in text.split('\n')]
     words = [w.lower() for w in words]
-    words = [w for w in words if re.match('\w+', w)]
-    words = [w for w in words if re.match('\D+', w)]
+    words = [w for w in words if re.match(r'\w+', w)]
+    words = [w for w in words if re.match(r'\D+', w)]
     return words
 
 def get_predictions(words, encoder, decoder, letter_converter, phone_converter):

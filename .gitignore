@@ -1,7 +1,8 @@
 /00. data utils/
 .idea
 /c_phone_recognition/data/audio/
-/c_phone_recognition/old/old/test_audio/
+/00. old/old/old/test_audio/
+/00. old
 *.json
 *.wav
 *.m4a

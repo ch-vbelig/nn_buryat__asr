@@ -17,7 +17,7 @@ class Converter:
         if not self.alpha_path:
             raise RuntimeError('No value provided for self.alpha_path')
 
-        with open(self.alpha_path) as fp:
+        with open(self.alpha_path, encoding='utf-8') as fp:
             lines = fp.readlines()
             elements = [line.strip() for line in lines]
 

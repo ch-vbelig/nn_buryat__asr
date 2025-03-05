@@ -61,7 +61,7 @@ def configure_model(model_path, num_classes, learning_rate):
         model = engine.load_model(model, model_path)
         model.train()
     else:
-        print("Configuring a new model ...")
+        print("Configuring asdf new model ...")
 
     print(model)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -88,17 +88,11 @@ def run_training(model, optimizer, epochs, save_path, audio_dir, phone_dir, phon
     print('blank id', blank_id)
     criterion = nn.CTCLoss(blank=blank_id)
 
-    loss_threshold = 3
+    loss_threshold = 0.33
 
     for epoch in range(1, epochs + 1):
-        loss = engine.train_fn(dataloader, model, optimizer, criterion)
-        if epoch == 1:
-            dataset.save_maps()
+        loss = engine.train_fn(dataloader, model, optimizer, criterion, verbose=False)
 
-        # if epoch % 5 == 0:
-        # loss = engine.eval_fn(test_dataloader, encoder, decoder, criterion)
-
-        # if epoch % 5 == 0:
         print(f"Epoch: {epoch}, loss: {loss}")
         scheduler.step()
         if epoch % 5 == 0 and loss < loss_threshold:
@@ -108,14 +102,16 @@ def run_training(model, optimizer, epochs, save_path, audio_dir, phone_dir, phon
 
 
 if __name__ == '__main__':
-    AUDIO_DIR = './data/audio'
-    PHONE_DIR = './data/phones'
-    PHONE_MAP_PATH = './data/saved_maps.json'
+    AUDIO_DIR = 'E:\\Programming\\Buryat Speech Recognition\\data\\audio'
+    PHONE_DIR = 'E:\\Programming\\Buryat Speech Recognition\\data\\phones'
+    # AUDIO_DIR = './data/audio'
+    # PHONE_DIR = './data/phones'
+    PHONE_MAP_PATH = './data/phones_map.json'
     MODEL_PATH = 'models/phone_model_conv_residual.pth'
     N_CLASSES = config.NUM_OF_PHONE_UNITS + 1
     BLANK_ID = N_CLASSES - 1
-    LR = 1e-4
-    EPOCHS = 500
+    LR = 1e-8
+    EPOCHS = 100
 
     # Configure and train
     model, optimizer = configure_model(

@@ -12,11 +12,11 @@ ENCODER_PATH = '../model/encoder.pth'
 ATTN_DECODER_PATH = '../model/attn_decoder.pth'
 
 def open_file(fpath):
-    with open(fpath) as fp:
+    with open(fpath, encoding='utf-8') as fp:
         return fp.read()
 
 def save_to_file(fpath, words, predictions):
-    with open(fpath, 'w') as fp:
+    with open(fpath, 'w', encoding='utf-8') as fp:
         for sentence, phones in zip(words, predictions):
             word_line = ' '.join(sentence)
             phone_line = ' <SPACE> '.join(phones)

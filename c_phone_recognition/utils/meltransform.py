@@ -32,16 +32,30 @@ class MelTransform:
         )
 
         self.freq_masking = torchaudio.transforms.FrequencyMasking(
-            freq_mask_param=7
+            freq_mask_param=5
         )
         self.time_masking = torchaudio.transforms.TimeMasking(
-            time_mask_param=15
+            time_mask_param=5
         )
 
         self.amplitude_to_db_transform = torchaudio.transforms.AmplitudeToDB(
             stype='power',
             top_db=80
         )
+
+    def build_waveform(self, audio_path, time_first=True):
+        # signal: (n_channels, n_samples)
+        signal, sr = torchaudio.load(audio_path)
+
+        signal = self._resample_if_necessary(signal, sr)
+
+        # signal: (n_channels, n_samples) -> (1, n_samples)
+        signal = self._mix_down_if_necessary(signal)
+
+        signal = signal.squeeze()
+
+        return signal
+
 
     def build_spectrogram(self, audio_path, time_first=True):
         """
@@ -60,11 +74,11 @@ class MelTransform:
         # signal: (n_channels, n_mels, ts)
         signal = self.spec_transform(signal)
 
-        # for i in range(7):
-        #     signal = self.freq_masking(signal)
-        #
-        # for i in range(20):
-        #     signal = self.time_masking(signal)
+        for i in range(3):
+            signal = self.freq_masking(signal)
+
+        for i in range(10):
+            signal = self.time_masking(signal)
 
         signal = self.amplitude_to_db_transform(signal)
 

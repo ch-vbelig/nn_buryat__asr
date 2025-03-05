@@ -1,6 +1,5 @@
 import torch
-from cmodel import PhoneRecognitionModelResidual
-import utils.config as config
+import c_phone_recognition.utils.config as config
 from tqdm import tqdm
 
 
@@ -14,9 +13,10 @@ def load_model(model, path):
 
 def train_fn(
         data_loader,
-        model: PhoneRecognitionModelResidual,
+        model,
         optimizer,
-        ctc_loss
+        ctc_loss,
+        verbose=False
     ):
     # Set the model to train mode
     model.train()
@@ -29,18 +29,20 @@ def train_fn(
         input_tensor = input_tensor.to(config.DEVICE)
         target_tensor = target_tensor.to(config.DEVICE)
 
+
         # Zero the gradients
         optimizer.zero_grad()
 
         # log_probs: ts, bs, output_size
         log_probs = model(input_tensor)
 
-        # log_probs = log_probs.permute(1, 0, 2)
 
         ts = log_probs.size(0)
-        # print(log_probs.size())
-        # print(input_tensor.size())
-        # print(input_lengths)
+        if verbose:
+            print('Specs: ', input_tensor.size())
+            print('Outputs:', log_probs.size())
+            print('Target:', target_tensor.size())
+            print()
 
         # Compute the input lengths after convolution
         input_lengths = torch.floor(input_lengths * (ts / input_tensor.size(-1))).long()

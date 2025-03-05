@@ -13,16 +13,18 @@ class PhoneTransform:
         self.phone_map_path = phone_map_path
         self._init_mappings()
 
-    def preprocess(self, fpath):
+    def preprocess(self, fpath, bigram=False):
         ids = []
         phones = self._read_phones_from_file(fpath)
-        phone_pairs = self._bigrams(phones)
 
-        for phone in phone_pairs:
+        if bigram:
+            phones = self._bigrams(phones)
+
+        for phone in phones:
             if not phone in self.phone_to_index:
                 self._add_element(phone)
             ids.append(self.phone_to_index[phone])
-
+        ids = [int(i) for i in ids]
         return ids, self.n_elements
 
     def _init_mappings(self):

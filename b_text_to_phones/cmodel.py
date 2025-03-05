@@ -26,7 +26,7 @@ class EncoderRNN(nn.Module):
 
         # get all outputs and the last hidden state
         # output: (bs, MAX_SEQUENCE_LENGTH, hidden_size)
-        # hidden: (num_of_layers, bs, hidden_size) -> (1, bs, hidden_size)
+        # hidden (last hidden state): (num_of_layers, bs, hidden_size) -> (1, bs, hidden_size)
         output, hidden = self.gru(embedded)
 
         return output, hidden
@@ -80,6 +80,7 @@ class DecoderRNN(nn.Module):
 
             if target_tensor is not None:
                 # Teacher forcing -> feed the target as the next input
+                # decoder_input: (bs, 1)
                 decoder_input = target_tensor[:, i].unsqueeze(1)
             else:
                 # feed its own predictions
@@ -104,7 +105,9 @@ class DecoderRNN(nn.Module):
         output = self.embedding(input) # (bs, 1, hidden_size)
         output = F.relu(output)
 
-        output, hidden = self.gru(output, hidden) # (bs, 1, hidden_size) and (1, bs, hidden_size)
+        # output: (bs, 1, hidden_size),
+        # hidden: (1, bs, hidden_size)
+        output, hidden = self.gru(output, hidden)
         output = self.out(output)
 
         return output, hidden
@@ -118,11 +121,11 @@ class BahdanauAttention(nn.Module):
         self.Ua = nn.Linear(hidden_size, hidden_size)
         self.Va = nn.Linear(hidden_size, 1)
 
-    def forward(self, query, keys, idx):
+    def forward(self, hidden, encoder_outputs, idx):
         """
         Executed for every decoder's input word
-        :param query: hidden state permuted (bs, 1, hidden_size) -> changes for every decoder's input
-        :param keys: encoder_outputs (bs, MAX_SEQUENCE_LENGTH, hidden_size) -> stays the same
+        :param hidden: hidden state permuted (bs, 1, hidden_size) -> changes for every decoder's input
+        :param encoder_outputs: encoder_outputs (bs, MAX_SEQUENCE_LENGTH, hidden_size) -> stays the same
         :return: weights: # (bs, 1, MAX_SEQUENCE_LENGTH)
         :return: context: (bs, 1, hidden_size)
         """
@@ -138,12 +141,12 @@ class BahdanauAttention(nn.Module):
         # print(keys.size())
 
         scores = self.Va(torch.tanh(
-            self.Wa(query) + self.Ua(keys)
+            self.Wa(hidden) + self.Ua(encoder_outputs)
         )) # scores: (bs, MAX_SEQUENCE_LENGTH, 1)
 
         scores = scores.squeeze(2).unsqueeze(1) # scores: (bs, MAX_SEQUENCE_LENGTH, 1) -> (bs, 1, MAX_SEQUENCE_LENGTH)
         weights = F.softmax(scores, dim=-1) # (bs, 1, MAX_SEQUENCE_LENGTH)
-        context = torch.bmm(weights, keys) # (bs, 1, hidden_size)
+        context = torch.bmm(weights, encoder_outputs) # (bs, 1, hidden_size)
 
         return context, weights
 
@@ -219,6 +222,8 @@ class AttnDecoderRNN(nn.Module):
         """
         :param input: (bs, 1)
         :param hidden: (1, bs, hidden_size)
+        :param encoder_outputs: all outputs from the encoder (in this case only for retrieving batch_size)
+        -> (bs, MAX_SEQUENCE_LENGTH, hidden_size)
         :return: decoder_output: the next token -> (bs, 1, output_size)
         :return: decoder_hidden: (1, bs, hidden_size)
         :return: attn_weights: (bs, 1, MAX_SEQUENCE_LENGTH)
@@ -238,7 +243,7 @@ class AttnDecoderRNN(nn.Module):
         input_gru = torch.cat((embedded, context), dim=2)
 
         # output: (bs, 1, hidden_size)
-        # hidden: (1, bs, hidden_size)
+        # hidden (last hidden state): (1, bs, hidden_size)
         output, hidden = self.gru(input_gru, hidden)
 
         # output: (bs, 1, output_size)
@@ -274,3 +279,9 @@ if __name__ == '__main__':
     print(hid.size())
     # torch.Size([5, 10, 11])
     # torch.Size([1, 5, 64])
+
+
+
+# self.fc_hidden = nn.Linear(hidden_size, hidden_size)
+#         self.fc_encoder = nn.Linear(hidden_size, hidden_size)
+#         self.fc_alignment = nn.Linear(hidden_size, 1)
