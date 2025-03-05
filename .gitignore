@@ -3,6 +3,9 @@
 /c_phone_recognition/data/audio/
 /00. old/old/old/test_audio/
 /00. old
+/d_buryat_tts/ssrn_logs
+/d_buryat_tts/logs
+*.pth
 *.json
 *.wav
 *.m4a
