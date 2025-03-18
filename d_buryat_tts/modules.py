@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from d_buryat_tts.utils.config import Config
+from utils.config import Config
 
 
 # TODO: Normalize for Conv1d should default to True, avoid double dropout for HighwayConv!
@@ -86,4 +86,7 @@ class ConvTranspose1d(nn.ConvTranspose1d):
         if self.drop_out is not None:
             y = self.drop_out(y)
         return y
+
+
+
 

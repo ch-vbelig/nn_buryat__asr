@@ -12,24 +12,34 @@ import  torch
 import  torchaudio
 
 
-def extract_spectrogram(path):
+def load_wav(path):
+    # (n_samples)
+    wav, _ = librosa.load(path, sr=Config.sample_rate)
+
+    # Remove leading and trailing silence
+    wav, _ = librosa.effects.trim(wav)  # (n_samples)
+
+    # Preemphasis (upscale frequencies and downscale them later to reduce noise)
+    wav = np.append(wav[0], wav[1:] - Config.preemphasis * wav[:-1])
+
+    peak = np.abs(wav).max()
+
+    if peak > 1:
+        wav = wav / peak * 0.999
+
+    return wav
+
+
+def extract_spectrogram(wav):
     """
     Loads the audio file in 'path' and returns asdf corresponding normalized melspectrogram
     and asdf linear spectrogram.
     """
-    # (n_samples)
-    y, _ = librosa.load(path, sr=Config.sample_rate)
-
-    # Remove leading and trailing silence
-    y, _ = librosa.effects.trim(y) # (n_samples)
-
-    # Preemphasis (upscale frequencies and downscale them later to reduce noise)
-    y = np.append(y[0], y[1:] - Config.preemphasis*y[:-1])
 
     # Convert the waveform to asdf complex spectrogram by asdf short-time Fourier transform
     # Complex numbers
     linear = librosa.stft(
-        y=y,
+        y=wav,
         n_fft=Config.num_fft_samples,   # 2048
         hop_length=Config.hop_length,   # 276
         win_length=Config.window_length # 1102
@@ -53,6 +63,7 @@ def extract_spectrogram(path):
     # mel = np.power(mel / np.max(mel), Config.y_factor)
 
     # To decibel
+    # the same as 10 * np.log10(mel ** 2) (mel ** 2 => magnitude to power)
     mel = 20 * np.log10(np.maximum(1e-5, mel))  # (80, ts)
     mag = 20 * np.log10(np.maximum(1e-5, mag))  # (1025, ts)
 
@@ -68,6 +79,21 @@ def extract_spectrogram(path):
     # mel in db scale: (ts, n_mels) : (ts, 80)
     # mag in db scale: (ts, freq_bins) : (ts, 1025)
     return mel, mag
+
+
+def quantize_wav(wav):
+    """
+    Quantize waveform into 10 bit
+    """
+    # Pads before and after
+    wav = np.pad(wav, Config.window_length // 2, mode='reflect')
+
+    wav = wav[:((wav.shape[0] - Config.window_length) // Config.hop_length + 1) * Config.hop_length]
+
+    # Turns wav into int values between 0 and 1024 (with 512 as middle)
+    qwav = 2**(Config.num_bit - 1) + librosa.mu_compress(wav, mu=2**Config.num_bit - 1)
+
+    return qwav  # (n_samples, )
 
 
 def spectrogram2wav(mag):
@@ -97,6 +123,17 @@ def spectrogram2wav(mag):
 
     return wav.astype(np.float32)
 
+
+def vocoder(mag):
+    bundle = torchaudio.pipelines.TACOTRON2_WAVERNN_PHONE_LJSPEECH
+    vocoder = bundle.get_vocoder().to('cuda')
+
+    # mag (bs, mel, t)
+
+    with torch.inference_mode():
+        waveforms, lengths = vocoder(mag, torch.tensor([mag.shape[1]], dtype=torch.long))
+
+    return waveforms[0]
 
 def griffin_lim(spectrogram):
     """Applies Griffin-Lim's raw."""
@@ -132,12 +169,36 @@ def invert_spectrogram(spectrogram):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Generates spectrograms from wav files.')
-    parser.add_argument('-w', '--wav', dest='wav_path', required=False, default="wav",
-                        help='Directory of the wav files')
-    parser.add_argument('-m', '--mel', dest='mel_path', required=False, default="mel",
-                        help='Directory for the mel spectrograms')
-    parser.add_argument('-l', '--lin', dest='lin_path', required=False, default="lin",
-                        help='Directory for the linear spectrograms')
+    parser.add_argument(
+        '-w', '--wav',
+        dest='wav_path',
+        required=False,
+        default="wav",
+        help='Directory of the wav files'
+    )
+    parser.add_argument(
+        '-m', '--mel',
+        dest='mel_path',
+        required=False,
+        default="mel",
+        help='Directory for the mel spectrograms'
+    )
+    parser.add_argument(
+        '-l', '--lin',
+        dest='lin_path',
+        required=False,
+        default="lin",
+        help='Directory for the linear spectrograms'
+    )
+    parser.add_argument(
+        '-q', '--qwav',
+        dest='qwav_path',
+        required=True,
+        default="qwav",
+        help='Directory for the quantized waveforms'
+    )
+
+
     args = parser.parse_args()
 
     mels = []
@@ -146,31 +207,16 @@ if __name__ == "__main__":
         name, ext = os.path.splitext(file)
         if ext == ".wav":
             print("Processing " + file)
-            mel, mag = extract_spectrogram(os.path.join(args.wav_path, name) + ".wav")
+            wav = load_wav(os.path.join(args.wav_path, name) + ".wav")
+            mel, mag = extract_spectrogram(wav)
+            qwav = quantize_wav(wav)
             mels.append(mel)
             mel_lengths.append(mel.shape[0])
             np.save(os.path.join(args.mel_path, name), mel)
             np.save(os.path.join(args.lin_path, name), mag)
-    # np.save(os.path.join(args.mel_path, "all"), np.array(mels))
+            np.save(os.path.join(args.qwav_path, name), qwav)
+
     print("Finished")
     print(max(mel_lengths))
 
 
-    # path = 'C:\\Users\\buryat_saram\\Music\\Project Buryat Saram\\buryat_text_to_speech\\raw_data_buryat_wavs\\reading_0_0.wav'
-    # mel, mag = extract_spectrogram(path)
-    #
-    # wav = spectrogram2wav(mag)
-    #
-    #
-    # wav = torch.tensor(wav)
-    # wav = wav.unsqueeze(0)
-    #
-    # print(wav.size())
-    #
-    # save_path = 'speech_50.wav'
-    #
-    # torchaudio.save(
-    #     uri=save_path,
-    #     src=wav,
-    #     sample_rate=Config.sample_rate
-    # )

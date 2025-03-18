@@ -1,14 +1,18 @@
-import torch.utils.data
+import torch
 import torch.nn.functional as F
+import torchaudio
+from torch.utils.data import Dataset
 from pathlib import Path
 import numpy as np
 from collections import OrderedDict
 from random import shuffle
-from d_buryat_tts.utils.config import Config
+from utils.config import Config, VocoderConfig
 from d_buryat_tts.utils import text_processing
+import random
+import librosa
+from librosa.util import normalize
 
-
-class TTSDataset(torch.utils.data.Dataset):
+class TTSDataset(Dataset):
     """
     Text to speech dataset.
 
@@ -266,48 +270,105 @@ class FastDataLoader(torch.utils.data.dataloader.DataLoader):
 
 
 
+class WaveRNNDataset(Dataset):
+    def __init__(self, mel_dir, qwav_dir, max_items=None):
+        self.mel_dir = mel_dir
+        self.qwav_dir = qwav_dir
+        self.max_items = max_items
+        self.sample_frames = VocoderConfig.sample_frames
+        self.hop_length = Config.hop_length
 
-        # if data_in_memory and os.path.exists(os.path.join(mel_dir, "all.npy")):
-        #     mels = np.load(os.path.join(mel_dir, "all.npy"), allow_pickle=True)
-        # else:
-        #     mels = None
-        # with io.open(text_dir, "r", encoding="utf-8-sig") as f:
-        #     lines = f.readlines()
-        #     for i, line in enumerate(lines):
-        #         line = line.split("|", maxsplit=1)
-        #         text = line[1]
-        #         text = text_processing.normalize(text)
-        #         text = text + Config.vocab_end_of_text
-        #         # Skip if text is too long
-        #         if len(text) > Config.max_N:
-        #             print("Warning: Text with id '{}' is too long! Line will be skipped".format(line[0]))
-        #             continue
-        #         text = text_processing.vocab_lookup(text)
-        #         text = torch.tensor(text, dtype=torch.long)
-        #         if data_in_memory:
-        #             if mels is not None:
-        #                 mel = mels[i]
-        #                 t = mel.shape[0]  # Needed for lin padding
-        #                 mel = self._process_mel(mel)
-        #             else:
-        #                 mel_path = os.path.join(mel_dir, line[0]) + ".npy"
-        #                 mel = np.load(mel_path)
-        #                 t = mel.shape[0]  # Needed for lin padding
-        #                 mel = self._process_mel(np.load(mel_path))
-        #             # Skip if mel is too long
-        #             if mel.shape[0] > Config.max_T:
-        #                 print("Warning: Mel with id '{}' is too long! Line will be skipped".format(line[0]))
-        #                 continue
-        #             self.data.append({"name": line[0], "text": text, "mel": mel, "t": t})
-        #         else:
-        #             self.data.append({"name": line[0], "text": text})
+        self.mel_files, self.qwav_files = self._search_files()
+
+
+    def __len__(self):
+        return len(self.mel_files)
+
+    def __getitem__(self, item):
+        idx = random.randint(0, len(self.mel_files) - 1)
+        mel_path_stem = self.mel_files[idx].stem
+        qwav_path_stem = self.qwav_files[idx].stem
+
+        if mel_path_stem != qwav_path_stem:
+            raise RuntimeError(f"Error: file names do not match: {mel_path_stem} VS {qwav_path_stem}")
+
+        mel = np.load(self.mel_files[idx]) # (ts, 80)
+        qwav = np.load(self.qwav_files[idx]) # (n_samples, )
+
+        pos = random.randint(0, mel.shape[0] - self.sample_frames - 1)
+        start, end = pos, pos + self.sample_frames
+
+        mel = mel[start: end, :] # (ts, 80)
+        qwav = qwav[start * self.hop_length: end * self.hop_length + 1]
+
+
+        # mel: (ts, 80)
+        # qwav: (n_samples)
+        return mel, qwav
+
+
+
+    def _search_files(self):
+        mel_files = list(Path(self.mel_dir).glob('*.npy'))
+        qwav_files = list(Path(self.qwav_dir).glob('*.npy'))
+
+        if self.max_items is not None:
+            assert self.max_items < len(mel_files), f'Max items exceeds actual number of files!'
+
+            ids = random.sample(range(len(mel_files)), k=self.max_items)
+            mel_files = [mel_files[i] for i, _ in enumerate(mel_files) if i in ids]
+            qwav_files = [qwav_files[i] for i, _ in enumerate(qwav_files) if i in ids]
+        return mel_files, qwav_files
+
+
+
+class MelGANDataset(Dataset):
+    def __init__(self, wav_dir, segment_length, augment=True):
+        self.wav_dir = wav_dir
         # self.mel_dir = mel_dir
-        # self.lin_dir = lin_dir
+        self.wav_files = self._search_files()
+        self.segment_length = segment_length
+        self.augment = augment
 
-        # if self.lin_dir is not None:
-        #     lin_path = os.path.join(self.lin_dir, self.data[idx]["name"]) + ".npy"
-        #     lin = self._process_lin(np.load(lin_path), t)
-        #     return {"mel": mel, "lin": lin, "text": text}
-        #
-        # else:
-        #     return {"mel": mel, "text": self.data[idx]["text"]}
+    def __len__(self):
+        return len(self.wav_files)
+
+    def __getitem__(self, idx):
+        wav = self._load_wav(self.wav_files[idx]) # (n_samples, )
+        wav_length = wav.size(0)
+
+        if wav.size(0) >= self.segment_length:
+            start = random.randint(0, wav_length - self.segment_length)
+            wav = wav[start : start + self.segment_length]
+        else:
+            wav = F.pad(wav, (0, self.segment_length - wav_length), "constant").detach()
+
+        wav = wav.unsqueeze(0) # (1, n_samples)
+
+        return wav
+
+    def _load_wav(self, path):
+        wav, _ = librosa.load(path, sr=Config.sample_rate)  # (n_samples, )
+        wav = 0.95 * normalize(wav)
+
+        if self.augment:
+            amplitude = np.random.uniform(low=0.3, high=1.0)
+            wav = wav * amplitude
+
+        return torch.from_numpy(wav).float()
+
+    def _search_files(self):
+        wav_files = list(Path(self.wav_dir).glob('*.wav'))
+        # mel_files = list(Path(self.mel_dir).glob('*.npy'))
+        return wav_files
+
+
+if __name__ == '__main__':
+    dataset = MelGANDataset(
+        wav_dir='C:\\Users\\buryat_saram\\Music\\Project Buryat Saram\\buryat_text_to_speech\\raw_data_buryat_wavs',
+        segment_length=32
+    )
+
+    m = dataset[0]
+
+    print(m.size())

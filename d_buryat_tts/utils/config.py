@@ -16,8 +16,10 @@ class Config:
     F = 80 # n_mels
     F_ = 1025 # STFT spec frequency resolution (half of Nyquist F)
 
-    y_factor = 0.6,
+    y_factor = 0.6
     n_factor = 1.3
+
+    num_bit = 10
 
     # Params for audio preprocessing
     sample_rate = 22050
@@ -47,6 +49,8 @@ class Config:
     g = 0.2 # guided attention
     dropout_rate = 0.05
 
+
+
     @staticmethod
     def get_config():
         attributes = inspect.getmembers(Config, lambda  a: not(inspect.isroutine(a)))
@@ -57,3 +61,43 @@ class Config:
         for name, value in a:
             setattr(Config, name, value)
 
+
+
+class VocoderConfig:
+    # Model params
+    conditioning_rnn_size = 128
+    audio_embedding_dim = 256
+    rnn_size = 896
+    fc_size = 1024
+
+    # Training
+    batch_size = 16
+    num_steps = 200000
+    sample_frames = 24
+    learning_rate = 4e-4
+    lr_scheduler_step_size = 20000
+    lr_scheduler_gamma = 0.5
+    checkpoint_interval = 1000
+
+
+class MelGANConfig:
+    # MelGAN
+    # Generator
+    ngf = 32
+    n_residual_layers = 3
+
+    # Descriminator
+    ndf = 16
+    num_D = 3
+    n_layers_D = 4
+    downsample_factor = 4
+    lambda_feat = 10
+
+    batch_size = 32
+    seq_len = 256 * 32  # 8192
+    epochs = 3000
+    log_interval = 10
+    save_interval = 1000
+    n_test_samples = 8
+    learning_rate_G = 5e-7
+    learning_rate_D = 5e-7

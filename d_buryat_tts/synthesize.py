@@ -2,7 +2,7 @@ import argparse
 from models import SSRN, Text2Mel
 from d_buryat_tts.utils.config import Config
 from d_buryat_tts.utils.text_processing import *
-from d_buryat_tts.utils.audio_processing import spectrogram2wav
+from d_buryat_tts.utils.audio_processing import spectrogram2wav, vocoder
 from dataset import *
 import os
 import torch
@@ -46,18 +46,18 @@ if __name__ == "__main__":
     ssrn_step = state_ssrn["global_step"]
     ssrn.load_state_dict(state_ssrn["model"])
 
-    text = ("энэ буруул даа, юундэ ганса ута бэшэ мэдуулэл хэнэбда")
+    text = "би энэ сугтаа хүдэлһэн нүхэр тухай хоорэхэ гэжэ ерээд һуужа байнаб тиигээд лэ но намтай наһаарааш сасуу гэхэдэ болохолда намһаа нэгэ аха дүшэ долоо ондо түрэһэн агын гарбалтай"
     text = normalize(text)
     text = text + Config.vocab_end_of_text
     text = vocab_lookup(text)
 
     L = torch.tensor(text, device=device, requires_grad=False).unsqueeze(0)
     S = torch.zeros(1, Config.max_T, Config.F, requires_grad=False, device=device)  # S: (bs, T, n_mels)
-    previous_position = torch.zeros(1, requires_grad=False, dtype=torch.long, device=device)
+    previous_position = torch.zeros(1, requires_grad=False, dtype=torch.long, device=device) # tensor([0]) # (1)
     previous_att = torch.zeros(1, len(text), Config.max_T, requires_grad=False, device=device) # 1, N, max_T
 
     print(S.size())
-    for t in range(Config.max_T - 1):
+    for t in range(Config.max_T-1):
         # Y: (bs, n_mels, ts)
         _, Y, A, current_position = text2mel.forward(L, S.transpose(1, 2),
                                                      force_incremental_att=True,
@@ -83,20 +83,26 @@ if __name__ == "__main__":
     wav = spectrogram2wav(Z[0])
     wav = np.concatenate([np.zeros(10000), wav], axis=0)  # Silence at the beginning
     wav *= 32767 / max(abs(wav))
-    print(max(abs(wav)))
     wav = wav.astype(np.int16)
     wav = torch.tensor(wav)
     wav = wav.unsqueeze(0)
 
-    fig, ax = plt.subplots(nrows=2)
+    # wav_vocoder = vocoder(S.transpose(1, 2))
+    # print(wav_vocoder.size())
+
+    # fig, ax = plt.subplots(nrows=2)
     # img = librosa.display.specshow(data=mel, x_axis='time', y_axis='hz')
     # fig.colorbar(img, ax=ax[0], format="%+2.0f dB")
 
-    ax[1].plot(wav[0].numpy())
+    # ax[1].plot(wav[0].numpy())
+
+    fig, ax = plt.subplots()
+    img = ax.imshow(A.detach().cpu()[0])
+    fig.colorbar(img)
     plt.show()
 
     torchaudio.save(
-        uri='synthesized_speech/speech_6.wav',
+        uri='synthesized_speech/speech_8.wav',
         src=wav,
         sample_rate=Config.sample_rate
     )
